@@ -1,12 +1,11 @@
 import { defineStore } from "pinia";
 import { useEditorStore } from "src/store/editor";
 import { useChartStore } from "src/store/chart";
-
 import localforage from "localforage";
 
 const fs = localforage.createInstance({
   name: "dbdiagram-oss",
-  storeName: "files"
+  storeName: "files",
 });
 
 export const useFilesStore = defineStore("files", {
@@ -14,7 +13,7 @@ export const useFilesStore = defineStore("files", {
     saving: false,
     lastSave: 0,
     currentFile: "",
-    files: []
+    files: [],
   }),
   getters: {
     getFiles(state) {
@@ -22,80 +21,81 @@ export const useFilesStore = defineStore("files", {
     },
     getCurrentFile(state) {
       return state.currentFile;
-    }
+    },
   },
   actions: {
-    loadFileList() {
-      console.log("loading file list");
-
-      fs.keys()
-        .then(keys => {
-          this.files = keys;
-        });
-    },
-    loadFile(fileName) {
-      this.loadFileList();
-      console.log("loading file", fileName);
-
-      fs.getItem(fileName)
-        .then(file => {
-          if (file && file.source) {
-            const fSource = file.source;
-            const fChart = file.chart || {};
-
-            const editor = useEditorStore();
-            const chart = useChartStore();
-
-            chart.load(fChart);
-            editor.load({
-              source: fSource
-            });
-
-            this.$patch({
-              currentFile: fileName
-            });
-
-          }
-        });
-    },
-    saveFile(fileName) {
-      this.saving = true;
-      if (!fileName) {
-        fileName = this.currentFile;
+    async loadFileList() {
+      try {
+        console.log("loading file list");
+        const keys = await fs.keys();
+        this.files = keys;
+      } catch (error) {
+        console.error("Error loading file list:", error);
       }
-      if (!fileName) {
-        const list = this.files;
-        let i = 1;
-        fileName = `Untitled (${i})`;
+    },
+    async loadFile(fileName) {
+      try {
+        await this.loadFileList();
+        console.log("loading file", fileName);
+        const file = await fs.getItem(fileName);
+        if (file && file.source) {
+          const editor = useEditorStore();
+          const chart = useChartStore();
 
-        while (list.indexOf(fileName) >= 0) {
-          fileName = `Untitled (${i++})`;
+          chart.load(file.chart || {});
+          editor.load({
+            source: file.source,
+          });
+
+          this.$patch({
+            currentFile: fileName,
+          });
         }
+      } catch (error) {
+        console.error("Error loading file:", error);
       }
-      console.log("saving file", fileName);
+    },
+    async saveFile(fileName) {
+      this.saving = true;
+      try {
+        if (!fileName) {
+          fileName = this.currentFile || this.generateDefaultFileName();
+        }
+        console.log("saving file", fileName);
 
-      const editor = useEditorStore();
-      const chart = useChartStore();
+        const editor = useEditorStore();
+        const chart = useChartStore();
 
-      const file = {
-        ...editor.save,
-        chart: chart.save
-      };
+        const file = {
+          ...editor.save,
+          chart: chart.save,
+        };
 
-      fs.setItem(fileName, JSON.parse(JSON.stringify(file))).then(() => {
-        this.loadFileList();
-        this.saving = false;
+        await fs.setItem(fileName, JSON.parse(JSON.stringify(file)));
+        await this.loadFileList();
         this.lastSave = new Date();
         if (this.currentFile !== fileName) {
           this.$patch({
-            currentFile: fileName
+            currentFile: fileName,
           });
         }
-      });
+      } catch (error) {
+        console.error("Error saving file:", error);
+      } finally {
+        this.saving = false;
+      }
     },
-    newFile() {
+    generateDefaultFileName() {
+      let i = 1;
+      let fileName = `Untitled (${i})`;
+      while (this.files.indexOf(fileName) >= 0) {
+        fileName = `Untitled (${i++})`;
+      }
+      return fileName;
+    },
+    async newFile() {
       this.$patch({
-        currentFile: undefined
+        currentFile: undefined,
       });
 
       const editor = useEditorStore();
@@ -103,22 +103,47 @@ export const useFilesStore = defineStore("files", {
 
       editor.$reset();
       chart.$reset();
-      this.saveFile();
+      await this.saveFile();
     },
-    deleteFile(fileName) {
+    async deleteFile(fileName) {
       if (!fileName) return;
-      fs.removeItem(fileName).then(() => {
-        this.loadFileList();
-      });
-    },
-    renameFile(newName) {
-      const oldName = this.currentFile;
-      this.saveFile(newName);
-      if (oldName !== newName) {
-        this.deleteFile(oldName);
-        this.currentFile = newName;
+      try {
+        await fs.removeItem(fileName);
+        await this.loadFileList();
+      } catch (error) {
+        console.error("Error deleting file:", error);
       }
-      this.loadFileList();
-    }
-  }
+    },
+    async renameFile(newName) {
+      const oldName = this.currentFile;
+      try {
+        await this.saveFile(newName);
+        if (oldName !== newName) {
+          await this.deleteFile(oldName);
+          this.currentFile = newName;
+        }
+        await this.loadFileList();
+      } catch (error) {
+        console.error("Error renaming file:", error);
+      }
+    },
+    async loadFileFromUpload(fileContent, fileName) {
+      try {
+        console.log("loading file from upload", fileName);
+        const editor = useEditorStore();
+        const chart = useChartStore();
+        const fileData = JSON.parse(fileContent);
+        editor.load({
+          source: fileData.source,
+        });
+        chart.load(fileData.chart || {});
+        await fs.setItem(fileName, fileData);
+        await this.loadFileList();
+        this.currentFile = fileName;
+        console.log(`Current file set to ${this.currentFile}`);
+      } catch (error) {
+        console.error(`Error loading file from upload: ${error}`);
+      }
+    },
+  },
 });

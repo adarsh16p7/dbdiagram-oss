@@ -13,7 +13,7 @@
             <q-item-label>{{ file }}</q-item-label>
           </q-item-section>
           <q-item-section thumbnail>
-            <q-btn icon="delete" size="sm" flat dense round @click.stop="() => confirmDeleteFile(file)" />
+            <q-btn icon="delete" size="sm" flat dense round @click="() => confirmDeleteFile(file)" />
           </q-item-section>
         </q-item>
         <q-separator />
@@ -60,7 +60,7 @@
     </q-btn-dropdown>
 
     <!-- Hidden file input -->
-    <input type="file" ref="fileInputRef" hidden @change="handleFileUpload" accept=".json,.mysql,.postgres,.mssql,.svg,.png,.pdf" />
+    <input type="file" :ref="fileInputRef" class="hidden" @change="handleFileUpload" :accept="acceptedFileTypes" />
   </div>
 
   <q-space />
@@ -75,8 +75,8 @@
 </template>
 
 <script setup>
-import { useEditorStore } from "../../store/editor";
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, nextTick } from "vue";
+import { useEditorStore } from "src/store/editor";
 import { useQuasar } from "quasar";
 import PreferencesDialog from "../../components/PreferencesDialog";
 import { useFilesStore } from "../../store/files";
@@ -88,7 +88,15 @@ const $q = useQuasar();
 // Define the file input ref
 const fileInputRef = ref(null);
 
-const reader = new FileReader();
+onMounted(() => {
+  nextTick(() => {
+    if (!fileInputRef.value) {
+      console.error("fileInputRef is not initialized properly.");
+    } else {
+      console.log("File input ref initialized successfully:", fileInputRef.value);
+    }
+  });
+});
 
 const exportOptions = ref([
   { id: "json", label: "Json" },
@@ -122,26 +130,16 @@ const handleFileUpload = async (evt) => {
   const file = evt.target.files[0];
   if (file) {
     try {
-      const fileContent = await file.text(); // Reading the file content
+      const fileContent = await file.text();
       const fileName = file.name;
-      console.log(11)
-      console.log("File content: "+ fileContent);
+      console.log("File content:", fileContent);
 
-      // getting the Ace Editor instance from the store
-      const aceEditorInstance = editor.getAceEditorInstance;
-      if (aceEditorInstance) {
-        console.log(22)
-        aceEditorInstance.session.setValue(fileContent); // Load the content into the editor
-      } else {
-        console.error("Ace Editor instance is not available.");
-      }
-      console.log(33)
-      files.loadFileFromUpload(fileContent, fileName);
+      // Assuming `files.loadFileFromUpload` properly parses and loads the content into the editor
+      await files.loadFileFromUpload(fileContent, fileName);
     } catch (error) {
       console.error("Error reading file:", error);
     }
   }
-  file = null;
 };
 
 const dark = computed({

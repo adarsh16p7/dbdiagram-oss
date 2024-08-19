@@ -73,10 +73,7 @@ import "ace-builds/src-noconflict/worker-base.js";
 import workerJsonUrl from "file-loader?type=commonjs|target=es5|esModule=false!app/public/mode-dbml.js"; // For webpack / vue-cli
 
 export default boot(({ app }) => {
-
   ace.config.setModuleUrl("ace/mode/dbml", workerJsonUrl);
 
   const themes = ace.require("ace/ext/themelist");
-
-
 });

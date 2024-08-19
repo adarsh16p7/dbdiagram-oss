@@ -1,11 +1,10 @@
 import { defineStore } from "pinia";
 import { Parser } from "@dbml/core";
-import { throttle } from "quasar";
 import { useChartStore } from "./chart";
-
 
 export const useEditorStore = defineStore("editor", {
   state: () => ({
+    aceEditorInstance: null,
     source: {
       format: "dbml",
       text: "",
@@ -13,62 +12,64 @@ export const useEditorStore = defineStore("editor", {
         selection: {
           start: {
             row: null,
-            col: null
+            col: null,
           },
           end: {
             row: null,
-            col: null
-          }
-        }
-      }
+            col: null,
+          },
+        },
+      },
     },
     database: {
       schemas: [
         {
           tables: [],
-          refs: []
-        }
-      ]
+          refs: [],
+        },
+      ],
     },
     preferences: {
       dark: false,
       theme: "dracula",
-      split: 25.0
+      split: 25.0,
     },
     parserError: {
       location: {
         start: { row: undefined, col: undefined },
-        end: { row: undefined, col: undefined }
+        end: { row: undefined, col: undefined },
       },
       type: undefined,
-      message: undefined
-    }
+      message: undefined,
+    },
   }),
   getters: {
+    getAceEditorInstance(state) {
+      return state.aceEditorInstance;
+    },
     findField(state) {
-      return ((fieldId) => {
+      return (fieldId) => {
         let field = null;
         for (const schema of state.database.schemas) {
           for (const table of schema.tables) {
-            field = table.fields.find(f => f.id === fieldId);
+            field = table.fields.find((f) => f.id === fieldId);
             if (field) {
               return field;
             }
           }
         }
         return undefined;
-      });
+      };
     },
     findTable(state) {
-      return ((tableId) => {
+      return (tableId) => {
         let table = null;
         for (const schema of state.database.schemas) {
-          table = schema.tables.find(t => t.id === tableId);
-          if (table)
-            return table;
+          table = schema.tables.find((t) => t.id === tableId);
+          if (table) return table;
         }
         return undefined;
-      });
+      };
     },
     getSourceFormat(state) {
       return state.source.format;
@@ -97,11 +98,14 @@ export const useEditorStore = defineStore("editor", {
     save(state) {
       return {
         source: state.source,
-        preferences: state.preferences
-      }
-    }
+        preferences: state.preferences,
+      };
+    },
   },
   actions: {
+    setAceEditorInstance(editorInstance) {
+      this.aceEditorInstance = editorInstance;
+    },
     load(state) {
       this.clearDatabase();
       this.$patch(state);
@@ -112,67 +116,71 @@ export const useEditorStore = defineStore("editor", {
       if (sourceText === this.source.text) return;
       this.$patch({
         source: {
-          text: sourceText
-        }
+          text: sourceText,
+        },
       });
     },
     updatePositions(positions) {
       this.$patch({
-        positions: positions
+        positions: positions,
       });
     },
     clearDatabase() {
       this.database = {
         schemas: [
           {
-            tableGroups: [],
             tables: [],
-            refs: []
-          }
-        ]
+            refs: [],
+          },
+        ],
       };
       this.clearParserError();
     },
     updateDatabase() {
       console.log("updating database...");
       try {
+        console.log(1)
         const database = Parser.parse(this.source.text, this.source.format);
+        console.log(2)
         database.normalize();
+        console.log(3)
         this.database = database;
+        console.log(4)
         this.clearParserError();
+        console.log()
         console.log("updated database");
         const chart = useChartStore();
         chart.loadDatabase(database);
       } catch (e) {
-        // do nothing
         console.error(e);
+        console.log('error occured.')
         this.updateParserError(e);
       }
     },
     updatePreferences(preferences) {
       this.$patch({
-        preferences: preferences
+        preferences: preferences,
       });
     },
     updateDark(dark) {
       this.$patch({
         preferences: {
-          dark: dark
-        }
+          dark: dark,
+        },
       });
     },
     updateTheme(theme) {
       this.$patch({
         preferences: {
-          theme
-        }
+          theme,
+        },
       });
     },
     updateSplit(split) {
       this.$patch({
         preferences: {
-          split
-        }
+          split,
+        },
       });
     },
     updateSelectionMarker(start, end) {
@@ -181,24 +189,24 @@ export const useEditorStore = defineStore("editor", {
           markers: {
             selection: {
               start: start,
-              end: end
-            }
-          }
-        }
+              end: end,
+            },
+          },
+        },
       });
     },
     updateScale(scale) {
       this.$patch({
         positions: {
-          scale: scale
-        }
+          scale: scale,
+        },
       });
     },
     updateTranslation(translation) {
       this.$patch({
         positions: {
-          translation: translation
-        }
+          translation: translation,
+        },
       });
     },
     clearParserError() {
@@ -210,17 +218,17 @@ export const useEditorStore = defineStore("editor", {
           parserError: {
             location: {
               start: { row: err.location.start.line - 1, col: err.location.start.column - 1 },
-              end: { row: err.location.end.line - 1, col: err.location.end.column - 1 }
+              end: { row: err.location.end.line - 1, col: err.location.end.column - 1 },
             },
-            type: 'error',
-            message: err.message
-          }
+            type: "error",
+            message: err.message,
+          },
         });
       } else {
         this.$patch({
-          parserError: undefined
+          parserError: undefined,
         });
       }
-    }
-  }
+    },
+  },
 });
